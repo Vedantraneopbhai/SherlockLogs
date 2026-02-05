@@ -1,0 +1,9 @@
+fastapi>=0.95.0
+uvicorn[standard]
+python-multipart
+aiofiles
+python-dateutil
+sentence-transformers
+faiss-cpu
+sqlalchemy
+httpx
