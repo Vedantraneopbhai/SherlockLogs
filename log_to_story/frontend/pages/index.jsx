@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import Head from 'next/head'
 
 export default function Home() {
   const [logFile, setLogFile] = useState(null)
+  const canvasRef = useRef(null)
+  const trailRef = useRef([])
   const [playbookFile, setPlaybookFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
@@ -18,6 +20,97 @@ export default function Home() {
   // Fetch history on mount
   useEffect(() => {
     fetchHistory()
+  }, [])
+
+  // Mouse trail effect
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    
+    const ctx = canvas.getContext('2d')
+    let animationId
+    let mouseX = 0
+    let mouseY = 0
+    
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resizeCanvas()
+    window.addEventListener('resize', resizeCanvas)
+    
+    const handleMouseMove = (e) => {
+      mouseX = e.clientX
+      mouseY = e.clientY
+      trailRef.current.push({
+        x: mouseX,
+        y: mouseY,
+        time: Date.now(),
+        size: Math.random() * 10 + 5
+      })
+      // Keep only last 50 points
+      if (trailRef.current.length > 50) {
+        trailRef.current.shift()
+      }
+    }
+    
+    const drawTrail = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      const now = Date.now()
+      
+      // Filter out old points (older than 1 second)
+      trailRef.current = trailRef.current.filter(p => now - p.time < 1000)
+      
+      for (let i = 0; i < trailRef.current.length; i++) {
+        const point = trailRef.current[i]
+        const age = now - point.time
+        const opacity = Math.max(0, 1 - age / 1000)
+        const size = point.size * opacity
+        
+        // Create gradient for each point
+        const gradient = ctx.createRadialGradient(
+          point.x, point.y, 0,
+          point.x, point.y, size * 2
+        )
+        
+        // Cyber gradient colors
+        const hue = (i * 5 + Date.now() / 20) % 360
+        gradient.addColorStop(0, `hsla(${hue}, 100%, 70%, ${opacity * 0.8})`)
+        gradient.addColorStop(0.4, `hsla(${(hue + 30) % 360}, 100%, 50%, ${opacity * 0.4})`)
+        gradient.addColorStop(1, `hsla(${(hue + 60) % 360}, 100%, 50%, 0)`)
+        
+        ctx.beginPath()
+        ctx.arc(point.x, point.y, size * 2, 0, Math.PI * 2)
+        ctx.fillStyle = gradient
+        ctx.fill()
+      }
+      
+      // Draw connecting lines between points
+      if (trailRef.current.length > 1) {
+        ctx.beginPath()
+        ctx.moveTo(trailRef.current[0].x, trailRef.current[0].y)
+        for (let i = 1; i < trailRef.current.length; i++) {
+          const point = trailRef.current[i]
+          const age = now - point.time
+          const opacity = Math.max(0, 1 - age / 1000) * 0.3
+          ctx.lineTo(point.x, point.y)
+        }
+        ctx.strokeStyle = 'rgba(139, 92, 246, 0.2)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
+      
+      animationId = requestAnimationFrame(drawTrail)
+    }
+    
+    window.addEventListener('mousemove', handleMouseMove)
+    drawTrail()
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('resize', resizeCanvas)
+      cancelAnimationFrame(animationId)
+    }
   }, [])
 
   const fetchHistory = async () => {
@@ -186,6 +279,9 @@ Feb  6 10:16:05 server sshd[12350]: Failed password for root from 10.0.0.50 port
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
+      {/* Mouse trail canvas */}
+      <canvas ref={canvasRef} className="mouse-trail-canvas" />
+      
       {/* Animated gradient orbs */}
       <div className="gradient-orb gradient-orb-1"></div>
       <div className="gradient-orb gradient-orb-2"></div>

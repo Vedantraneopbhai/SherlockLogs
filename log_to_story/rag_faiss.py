@@ -51,12 +51,26 @@ def build_playbook_index(playbook_path, index_path=None):
 
 def load_playbook_index(path_or_index):
     # if path to saved index
-    if isinstance(path_or_index, str) and os.path.exists(path_or_index) and path_or_index.endswith('.md'):
-        # build from md and save to temp file
-        return build_playbook_index(path_or_index)
     if isinstance(path_or_index, str) and os.path.exists(path_or_index):
-        with open(path_or_index, 'rb') as f:
-            return pickle.load(f)
+        # Check if it's a text-based playbook file (md, txt, or any text file)
+        if path_or_index.endswith(('.md', '.txt', '.markdown')):
+            return build_playbook_index(path_or_index)
+        # Try to detect if it's a text file by reading first bytes
+        try:
+            with open(path_or_index, 'r', encoding='utf-8') as f:
+                content = f.read(100)
+                # If readable as text and looks like text content, treat as playbook
+                if content and not content.startswith(b'\x80'):  # Not a pickle file
+                    return build_playbook_index(path_or_index)
+        except UnicodeDecodeError:
+            pass
+        # Try loading as pickle (cached index)
+        try:
+            with open(path_or_index, 'rb') as f:
+                return pickle.load(f)
+        except Exception:
+            # If pickle fails, try building from text
+            return build_playbook_index(path_or_index)
     return None
 
 
