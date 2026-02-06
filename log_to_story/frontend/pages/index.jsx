@@ -58,7 +58,11 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="matrix-bg"></div>
+      {/* Animated gradient orbs */}
+      <div className="gradient-orb gradient-orb-1"></div>
+      <div className="gradient-orb gradient-orb-2"></div>
+      <div className="gradient-orb gradient-orb-3"></div>
+      <div className="grid-pattern"></div>
       
       <div className="container">
         {/* Header */}
@@ -149,15 +153,15 @@ export default function Home() {
                   <div className="stat-label">Total Events</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value" style={{ background: 'linear-gradient(135deg, #ff4757, #ff6b81)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{stats.failedEvents}</div>
+                  <div className="stat-value" style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{stats.failedEvents}</div>
                   <div className="stat-label">Failed Attempts</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value">{stats.successEvents}</div>
+                  <div className="stat-value" style={{ background: 'linear-gradient(135deg, #10b981, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{stats.successEvents}</div>
                   <div className="stat-label">Successful Logins</div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-value" style={{ background: 'linear-gradient(135deg, #a855f7, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{stats.uniqueIPs}</div>
+                  <div className="stat-value" style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{stats.uniqueIPs}</div>
                   <div className="stat-label">Unique IPs</div>
                 </div>
               </div>
@@ -248,9 +252,11 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="footer">
-          <p>SherlockLogs — Transforming security logs into actionable intelligence</p>
-          <p style={{ marginTop: '0.5rem' }}>
-            Powered by <a href="#">FastAPI</a> + <a href="#">Gemini AI</a> + <a href="#">RAG</a>
+          <p style={{ fontSize: '1rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+            <span style={{ background: 'var(--gradient-cyber)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontWeight: '600' }}>SherlockLogs</span> — Transforming security logs into actionable intelligence
+          </p>
+          <p>
+            Powered by <a href="#">FastAPI</a> • <a href="#">Gemini AI</a> • <a href="#">RAG</a>
           </p>
         </footer>
       </div>
