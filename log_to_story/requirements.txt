@@ -5,5 +5,5 @@ aiofiles
 python-dateutil
 sentence-transformers
 faiss-cpu
-sqlalchemy
 httpx
+python-dotenv

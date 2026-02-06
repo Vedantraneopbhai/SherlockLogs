@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import Head from 'next/head'
 
@@ -8,6 +8,26 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [history, setHistory] = useState([])
+  const [showHistory, setShowHistory] = useState(false)
+  const [searchFilter, setSearchFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [dragActive, setDragActive] = useState(false)
+  const [analysisStage, setAnalysisStage] = useState('')
+
+  // Fetch history on mount
+  useEffect(() => {
+    fetchHistory()
+  }, [])
+
+  const fetchHistory = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/history')
+      setHistory(response.data.analyses || [])
+    } catch (err) {
+      console.error('Failed to fetch history:', err)
+    }
+  }
 
   const handleAnalyze = async () => {
     if (!logFile) {
@@ -18,6 +38,23 @@ export default function Home() {
     setLoading(true)
     setError(null)
     setResult(null)
+
+    // Simulate analysis stages
+    const stages = [
+      'Uploading file...',
+      'Parsing log entries...',
+      'Detecting threats...',
+      'Generating narrative...',
+      'Fetching recommendations...'
+    ]
+    
+    let stageIndex = 0
+    const stageInterval = setInterval(() => {
+      if (stageIndex < stages.length) {
+        setAnalysisStage(stages[stageIndex])
+        stageIndex++
+      }
+    }, 1500)
 
     const formData = new FormData()
     formData.append('logfile', logFile)
@@ -31,11 +68,85 @@ export default function Home() {
         timeout: 120000
       })
       setResult(response.data)
+      fetchHistory() // Refresh history after new analysis
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Analysis failed')
     } finally {
+      clearInterval(stageInterval)
+      setAnalysisStage('')
       setLoading(false)
     }
+  }
+
+  // Drag and drop handlers
+  const handleDrag = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }, [])
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0]
+      if (file.name.endsWith('.log') || file.name.endsWith('.txt')) {
+        setLogFile(file)
+      }
+    }
+  }, [])
+
+  // Load demo sample
+  const loadDemo = async () => {
+    try {
+      const response = await fetch('/sample.log')
+      const text = await response.text()
+      const blob = new Blob([text], { type: 'text/plain' })
+      const file = new File([blob], 'sample.log', { type: 'text/plain' })
+      setLogFile(file)
+    } catch (err) {
+      // If sample file doesn't exist, create a mock one
+      const sampleLog = `Feb  6 10:15:01 server sshd[12345]: Failed password for invalid user admin from 192.168.1.100 port 54321 ssh2
+Feb  6 10:15:05 server sshd[12346]: Failed password for invalid user root from 192.168.1.100 port 54322 ssh2
+Feb  6 10:15:10 server sshd[12347]: Failed password for invalid user test from 192.168.1.100 port 54323 ssh2
+Feb  6 10:15:15 server sshd[12348]: Accepted password for admin from 192.168.1.50 port 54324 ssh2
+Feb  6 10:16:01 server sshd[12349]: Failed password for invalid user guest from 10.0.0.50 port 54325 ssh2
+Feb  6 10:16:05 server sshd[12350]: Failed password for root from 10.0.0.50 port 54326 ssh2`
+      const blob = new Blob([sampleLog], { type: 'text/plain' })
+      const file = new File([blob], 'sample_demo.log', { type: 'text/plain' })
+      setLogFile(file)
+    }
+  }
+
+  // Export results as JSON
+  const exportJSON = () => {
+    if (!result) return
+    const dataStr = JSON.stringify(result, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `sherlock-report-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // Calculate threat severity
+  const getThreatSeverity = () => {
+    if (!result?.findings) return null
+    const findings = result.findings
+    const failedEvents = findings.filter(f => f.status === 'Failed').length
+    const uniqueIPs = [...new Set(findings.filter(f => f.status === 'Failed').map(f => f.ip))].length
+    
+    if (failedEvents > 50 || uniqueIPs > 10) return { level: 'CRITICAL', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' }
+    if (failedEvents > 20 || uniqueIPs > 5) return { level: 'HIGH', color: '#f97316', bg: 'rgba(249, 115, 22, 0.15)' }
+    if (failedEvents > 5 || uniqueIPs > 2) return { level: 'MEDIUM', color: '#eab308', bg: 'rgba(234, 179, 8, 0.15)' }
+    return { level: 'LOW', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' }
   }
 
   const getStats = () => {
@@ -48,7 +159,24 @@ export default function Home() {
     return { totalEvents, failedEvents, successEvents, uniqueIPs }
   }
 
+  // Filter findings
+  const getFilteredFindings = () => {
+    if (!result?.findings) return []
+    return result.findings.filter(f => {
+      const matchesSearch = searchFilter === '' || 
+        (f.user && f.user.toLowerCase().includes(searchFilter.toLowerCase())) ||
+        (f.ip && f.ip.includes(searchFilter)) ||
+        (f.timestamp && f.timestamp.includes(searchFilter))
+      const matchesStatus = statusFilter === 'all' || 
+        (statusFilter === 'failed' && f.status === 'Failed') ||
+        (statusFilter === 'success' && f.status === 'Accepted')
+      return matchesSearch && matchesStatus
+    })
+  }
+
   const stats = result ? getStats() : null
+  const severity = result ? getThreatSeverity() : null
+  const filteredFindings = getFilteredFindings()
 
   return (
     <>
@@ -79,15 +207,66 @@ export default function Home() {
         </header>
 
         {/* Upload Section */}
-        <section className="upload-section">
-          <h2 className="section-title">
-            <span className="section-icon">📁</span>
-            Upload Files for Analysis
-          </h2>
+        <section className="upload-section" onDragEnter={handleDrag}>
+          <div className="section-header-row">
+            <h2 className="section-title">
+              <span className="section-icon">📁</span>
+              Upload Files for Analysis
+            </h2>
+            <div className="section-actions">
+              <button className="action-btn demo-btn" onClick={loadDemo}>
+                <span>🎮</span> Try Demo
+              </button>
+              <button 
+                className={`action-btn history-btn ${showHistory ? 'active' : ''}`} 
+                onClick={() => setShowHistory(!showHistory)}
+              >
+                <span>📜</span> History ({history.length})
+              </button>
+            </div>
+          </div>
+
+          {/* History Panel */}
+          {showHistory && (
+            <div className="history-panel">
+              <h3 className="history-title">Recent Analyses</h3>
+              {history.length === 0 ? (
+                <p className="history-empty">No previous analyses found</p>
+              ) : (
+                <div className="history-list">
+                  {history.slice(0, 5).map((item) => (
+                    <div key={item.id} className="history-item">
+                      <div className="history-item-info">
+                        <span className="history-file">{item.file_path?.split(/[/\\]/).pop() || 'Unknown file'}</span>
+                        <span className="history-date">{new Date(item.created_at).toLocaleString()}</span>
+                      </div>
+                      <div className="history-preview">{item.narrative?.slice(0, 100)}...</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           
-          <div className="upload-grid">
+          {/* Drag & Drop Zone */}
+          {dragActive && (
+            <div 
+              className="drag-overlay"
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <div className="drag-content">
+                <span className="drag-icon">📥</span>
+                <span>Drop your log file here</span>
+              </div>
+            </div>
+          )}
+          
+          <div className="upload-grid" onDragOver={handleDrag}>
             {/* Log File Upload */}
-            <label className={`upload-card ${logFile ? 'has-file' : ''}`}>
+            <label className={`upload-card ${logFile ? 'has-file' : ''} ${dragActive ? 'drag-active' : ''}`}>
               <input
                 type="file"
                 accept=".log,.txt"
@@ -95,7 +274,7 @@ export default function Home() {
               />
               <div className="upload-icon">📋</div>
               <div className="upload-label">Security Log File</div>
-              <div className="upload-hint">auth.log, syslog, or any .log/.txt file</div>
+              <div className="upload-hint">Drag & drop or click to upload (.log, .txt)</div>
               {logFile && <div className="file-name">✓ {logFile.name}</div>}
             </label>
 
@@ -123,7 +302,7 @@ export default function Home() {
             {loading ? (
               <>
                 <div className="loading-spinner"></div>
-                <span>Analyzing Threats...</span>
+                <span>{analysisStage || 'Analyzing Threats...'}</span>
               </>
             ) : (
               <>
@@ -145,6 +324,17 @@ export default function Home() {
         {/* Results Section */}
         {result && (
           <div className="results-section">
+            {/* Export & Severity Header */}
+            <div className="results-header">
+              <div className="severity-badge" style={{ background: severity?.bg, borderColor: severity?.color }}>
+                <span className="severity-dot" style={{ background: severity?.color }}></span>
+                <span style={{ color: severity?.color }}>Threat Level: {severity?.level}</span>
+              </div>
+              <button className="export-btn" onClick={exportJSON}>
+                <span>📥</span> Export JSON
+              </button>
+            </div>
+
             {/* Stats Grid */}
             {stats && (
               <div className="stats-grid">
@@ -214,6 +404,44 @@ export default function Home() {
                     <div className="result-subtitle">Parsed log events with threat indicators</div>
                   </div>
                 </div>
+                
+                {/* Search and Filter Controls */}
+                <div className="filter-controls">
+                  <div className="search-box">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="Search by user, IP, or timestamp..."
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      className="search-input"
+                    />
+                    {searchFilter && (
+                      <button className="clear-search" onClick={() => setSearchFilter('')}>✕</button>
+                    )}
+                  </div>
+                  <div className="status-filter">
+                    <button 
+                      className={`filter-btn ${statusFilter === 'all' ? 'active' : ''}`}
+                      onClick={() => setStatusFilter('all')}
+                    >
+                      All
+                    </button>
+                    <button 
+                      className={`filter-btn failed ${statusFilter === 'failed' ? 'active' : ''}`}
+                      onClick={() => setStatusFilter('failed')}
+                    >
+                      Failed
+                    </button>
+                    <button 
+                      className={`filter-btn success ${statusFilter === 'success' ? 'active' : ''}`}
+                      onClick={() => setStatusFilter('success')}
+                    >
+                      Success
+                    </button>
+                  </div>
+                </div>
+
                 <div className="findings-container">
                   <table className="findings-table">
                     <thead>
@@ -225,7 +453,7 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {result.findings.slice(0, 20).map((finding, idx) => (
+                      {filteredFindings.slice(0, 20).map((finding, idx) => (
                         <tr key={idx}>
                           <td>{finding.timestamp || 'N/A'}</td>
                           <td>{finding.user || 'unknown'}</td>
@@ -239,9 +467,14 @@ export default function Home() {
                       ))}
                     </tbody>
                   </table>
-                  {result.findings.length > 20 && (
+                  {filteredFindings.length > 20 && (
                     <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '1rem' }}>
-                      Showing 20 of {result.findings.length} events
+                      Showing 20 of {filteredFindings.length} filtered events
+                    </p>
+                  )}
+                  {filteredFindings.length === 0 && (
+                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                      No events match your filter criteria
                     </p>
                   )}
                 </div>
