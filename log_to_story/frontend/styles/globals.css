@@ -626,6 +626,11 @@ input[type="file"] {
   color: var(--accent-orange);
 }
 
+.result-icon.chart {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%);
+  color: var(--accent-green);
+}
+
 .result-title {
   font-size: 1.35rem;
   font-weight: 600;
