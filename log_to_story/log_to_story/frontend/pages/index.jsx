@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import Head from 'next/head'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function Home() {
   const [logFile, setLogFile] = useState(null)
@@ -117,7 +116,7 @@ export default function Home() {
 
   const fetchHistory = async () => {
     try {
-      const response = await axios.get(`${API_URL}/history`)
+      const response = await axios.get('http://127.0.0.1:8000/history')
       setHistory(response.data.analyses || [])
     } catch (err) {
       console.error('Failed to fetch history:', err)
@@ -158,10 +157,11 @@ export default function Home() {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/analyze`, formData, {
+      const response = await axios.post('http://127.0.0.1:8000/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 120000
       })
+      console.log('Backend response:', response.data)
       setResult(response.data)
       fetchHistory() // Refresh history after new analysis
     } catch (err) {
@@ -190,7 +190,7 @@ export default function Home() {
     setDragActive(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0]
-      if (file.name.endsWith('.log') || file.name.endsWith('.txt')) {
+      if (file.name.endsWith('.log') || file.name.endsWith('.txt') || file.name.endsWith('.py')) {
         setLogFile(file)
       }
     }
@@ -251,6 +251,7 @@ Feb  6 10:16:05 server sshd[12350]: Failed password for root from 10.0.0.50 port
     const failedEvents = findings.filter(f => f.status === 'Failed').length
     const successEvents = findings.filter(f => f.status === 'Accepted').length
     const uniqueIPs = [...new Set(findings.map(f => f.ip))].length
+    console.log('Stats calculated:', { totalEvents, failedEvents, successEvents, uniqueIPs })
     return { totalEvents, failedEvents, successEvents, uniqueIPs }
   }
 
@@ -367,12 +368,12 @@ Feb  6 10:16:05 server sshd[12350]: Failed password for root from 10.0.0.50 port
             <label className={`upload-card ${logFile ? 'has-file' : ''} ${dragActive ? 'drag-active' : ''}`}>
               <input
                 type="file"
-                accept=".log,.txt"
+                accept=".log,.txt,.py"
                 onChange={(e) => setLogFile(e.target.files[0])}
               />
               <div className="upload-icon">📋</div>
               <div className="upload-label">Security Log File</div>
-              <div className="upload-hint">Drag & drop or click to upload (.log, .txt)</div>
+              <div className="upload-hint">Drag & drop or click to upload (.log, .txt, .py)</div>
               {logFile && <div className="file-name">✓ {logFile.name}</div>}
             </label>
 
@@ -451,6 +452,57 @@ Feb  6 10:16:05 server sshd[12350]: Failed password for root from 10.0.0.50 port
                 <div className="stat-card">
                   <div className="stat-value" style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{stats.uniqueIPs}</div>
                   <div className="stat-label">Unique IPs</div>
+                </div>
+              </div>
+            )}
+
+            {/* Pie Chart */}
+            {stats && stats.totalEvents > 0 && (
+              <div className="result-card">
+                <div className="result-header">
+                  <div className="result-icon chart">📊</div>
+                  <div>
+                    <div className="result-title">Event Distribution</div>
+                    <div className="result-subtitle">Visual breakdown of authentication attempts</div>
+                  </div>
+                </div>
+                <div style={{ width: '100%', height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Failed Attempts', value: stats.failedEvents },
+                          { name: 'Successful Logins', value: stats.successEvents }
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={true}
+                        label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(1)}%)`}
+                        outerRadius={100}
+                        dataKey="value"
+                        animationBegin={0}
+                        animationDuration={800}
+                      >
+                        <Cell key="cell-0" fill="#ef4444" />
+                        <Cell key="cell-1" fill="#10b981" />
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value) => `${value} events`}
+                        contentStyle={{ 
+                          background: 'rgba(15, 10, 30, 0.9)', 
+                          border: '1px solid rgba(139, 92, 246, 0.3)',
+                          borderRadius: '8px',
+                          color: '#f1f5f9'
+                        }}
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        height={36}
+                        iconType="circle"
+                        wrapperStyle={{ color: '#cbd5e1' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             )}

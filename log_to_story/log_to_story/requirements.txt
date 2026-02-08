@@ -1,6 +1,5 @@
 fastapi>=0.95.0
 uvicorn[standard]
-gunicorn
 python-multipart
 aiofiles
 python-dateutil

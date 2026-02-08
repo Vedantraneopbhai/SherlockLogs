@@ -18,12 +18,17 @@ load_dotenv(os.path.join(APP_ROOT, '.env'))
 UPLOAD_DIR = os.path.join(APP_ROOT, 'uploads')
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app = FastAPI()
+app = FastAPI(title="SherlockLogs API", description="AI-powered Security Log Analysis")
 
-# Allow frontend (Next.js) running on localhost:3000 to call this API
+# Get allowed origins from environment for production deployments
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001'
+).split(',')
+
+# Allow frontend (Next.js) to call this API - supports both local and production URLs
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"],
+    allow_origins=ALLOWED_ORIGINS + ["*"],  # Allow all origins for flexibility
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

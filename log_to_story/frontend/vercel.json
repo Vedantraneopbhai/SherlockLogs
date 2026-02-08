@@ -1,0 +1,9 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "NODE_OPTIONS='--max-old-space-size=512' npm run build",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@sherlocklogs_api_url",
+    "NODE_OPTIONS": "--max-old-space-size=512"
+  }
+}
